@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>2Dto3D Debug</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 24px;
+        background: #f7f7f7;
+        color: #222;
+      }
+      main {
+        max-width: 920px;
+        margin: 0 auto;
+        background: #fff;
+        border: 1px solid #ddd;
+        padding: 20px;
+      }
+      label {
+        display: block;
+        margin-top: 12px;
+      }
+      button {
+        margin: 12px 8px 0 0;
+        padding: 8px 12px;
+      }
+      pre {
+        background: #111;
+        color: #eee;
+        padding: 12px;
+        min-height: 180px;
+        overflow: auto;
+        white-space: pre-wrap;
+      }
+      .hint {
+        color: #555;
+        font-size: 14px;
+      }
+      .links a {
+        display: inline-block;
+        margin: 8px 12px 0 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>2Dto3D Debug</h1>
+      <p class="hint">Version: 2026-05-23 download-fix. This page has no external JS dependencies.</p>
+
+      <form id="form">
+        <label>
+          File
+          <input id="file" name="file" type="file" accept=".webp,.jpg,.jpeg,.png,.svg,.pdf" required />
+        </label>
+        <label>
+          PDF page
+          <input id="pdfPage" name="pdf_page" type="number" min="1" value="1" />
+        </label>
+        <label>
+          Profile
+          <select id="profile" name="profile">
+            <option value="print">print</option>
+            <option value="render">render</option>
+          </select>
+        </label>
+        <label>
+          Backend
+          <select id="backend" name="backend">
+            <option value="local">local</option>
+            <option value="cloud_stub">cloud_stub</option>
+          </select>
+        </label>
+        <button id="generate" type="submit">Upload / Generate</button>
+      </form>
+
+      <div>
+        <button id="downloadObj" disabled>Download OBJ ZIP</button>
+        <button id="download3mf" disabled>Download 3MF</button>
+        <button id="openBambu" disabled>Open Bambu Studio</button>
+      </div>
+      <div class="links" id="links"></div>
+
+      <pre id="status">Ready.</pre>
+    </main>
+
+    <script>
+      const form = document.querySelector("#form");
+      const statusBox = document.querySelector("#status");
+      const generate = document.querySelector("#generate");
+      const downloadObj = document.querySelector("#downloadObj");
+      const download3mf = document.querySelector("#download3mf");
+      const openBambu = document.querySelector("#openBambu");
+      const links = document.querySelector("#links");
+      let jobId = null;
+      let pollToken = 0;
+
+      function setStatus(value) {
+        statusBox.textContent = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+      }
+
+      async function readJson(response) {
+        const text = await response.text();
+        try {
+          return JSON.parse(text);
+        } catch {
+          return { raw: text };
+        }
+      }
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const fileInput = document.querySelector("#file");
+        if (!fileInput.files.length) {
+          setStatus("Please choose a file first.");
+          return;
+        }
+
+        const body = new FormData();
+        body.append("file", fileInput.files[0]);
+        body.append("pdf_page", document.querySelector("#pdfPage").value);
+        body.append("profile", document.querySelector("#profile").value);
+        body.append("backend", document.querySelector("#backend").value);
+
+        resetForNewJob();
+        setStatus("Uploading...");
+
+        try {
+          const response = await fetch("/api/jobs", { method: "POST", body });
+          const data = await readJson(response);
+          if (!response.ok) {
+            setStatus(data);
+            generate.disabled = false;
+            return;
+          }
+          jobId = data.job_id;
+          const token = ++pollToken;
+          setStatus(data);
+          poll(token);
+        } catch (error) {
+          setStatus("Request failed: " + error.message);
+          generate.disabled = false;
+        }
+      });
+
+      function resetForNewJob() {
+        pollToken++;
+        jobId = null;
+        generate.disabled = true;
+        downloadObj.disabled = true;
+        download3mf.disabled = true;
+        openBambu.disabled = true;
+        links.innerHTML = "";
+      }
+
+      async function poll(token) {
+        if (!jobId) return;
+        try {
+          const currentJobId = jobId;
+          const response = await fetch(`/api/jobs/${currentJobId}?ts=${Date.now()}`, { cache: "no-store" });
+          const data = await readJson(response);
+          if (token !== pollToken || currentJobId !== jobId) return;
+          setStatus(data);
+
+          const done = data.status === "done";
+          downloadObj.disabled = !done || !data.outputs.obj;
+          download3mf.disabled = !done || !data.outputs.threemf;
+          openBambu.disabled = !done || !data.outputs.threemf;
+          generate.disabled = data.status !== "done" && data.status !== "failed";
+
+          if (done) {
+            links.innerHTML = `
+              <a href="/api/jobs/${currentJobId}/preview?ts=${Date.now()}" target="_blank">Open preview.glb</a>
+              <a href="/api/jobs/${currentJobId}/download?format=obj&ts=${Date.now()}">Download OBJ ZIP</a>
+              <a href="/api/jobs/${currentJobId}/download?format=3mf&ts=${Date.now()}">Download 3MF</a>
+            `;
+            return;
+          }
+          if (data.status === "failed") return;
+          setTimeout(() => poll(token), 1500);
+        } catch (error) {
+          setStatus("Polling failed: " + error.message);
+          generate.disabled = false;
+        }
+      }
+
+      downloadObj.addEventListener("click", () => {
+        if (jobId) window.location.href = `/api/jobs/${jobId}/download?format=obj&ts=${Date.now()}`;
+      });
+      download3mf.addEventListener("click", () => {
+        if (jobId) window.location.href = `/api/jobs/${jobId}/download?format=3mf&ts=${Date.now()}`;
+      });
+      openBambu.addEventListener("click", async () => {
+        if (!jobId) return;
+        const response = await fetch(`/api/jobs/${jobId}/open-bambu`, { method: "POST" });
+        setStatus(await readJson(response));
+      });
+    </script>
+  </body>
+</html>

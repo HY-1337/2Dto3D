@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.venv/
+.venv-ai/
+data/jobs/
+data/triposr_*/
+test_assets/downloads/
+test_assets/
+test2.webp
+models/TripoSR/
+format_test/results/
+format_test/inputs/*
+!format_test/inputs/.gitkeep
+*.3mf
+*.obj
+*.glb
+*.zip
