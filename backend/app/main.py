@@ -3,13 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import jobs, system
-from app.config import FRONTEND_DIR, ensure_dirs
+from app.api import images, jobs, system
+from app.config import FRONTEND_DIR, settings, ensure_dirs
 
 
 ensure_dirs()
 
-app = FastAPI(title="2Dto3D", version="0.1.0")
+app = FastAPI(title="Unified 2D/3D AI Studio", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,9 +21,12 @@ app.add_middleware(
 
 app.include_router(jobs.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
+app.include_router(images.router, prefix="/api")
 
 if FRONTEND_DIR.exists():
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+
+app.mount("/image-outputs", StaticFiles(directory=str(settings.output_dir)), name="image_outputs")
 
 
 @app.get("/")

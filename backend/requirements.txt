@@ -5,6 +5,9 @@ pillow>=10.0
 numpy>=1.26
 trimesh>=4.4
 pydantic>=2.7
+pydantic-settings>=2.6
+httpx>=0.27
+websockets>=13.0
+python-dotenv>=1.0
 cairosvg>=2.7
 pymupdf>=1.24
-
