@@ -8,7 +8,12 @@ from app.core.errors import AppError
 
 
 def find_bambu_studio() -> Path | None:
+    configured = os.environ.get("BAMBU_STUDIO_EXE")
+    if configured and Path(configured).exists():
+        return Path(configured)
+
     candidates = [
+        Path(r"E:\BambuStudio\Bambu Studio\bambu-studio.exe"),
         Path(r"C:\Program Files\Bambu Studio\bambu-studio.exe"),
         Path(r"C:\Program Files\Bambu Studio\BambuStudio.exe"),
     ]
@@ -37,4 +42,3 @@ def open_bambu_with_file(model_path: Path) -> Path:
 
     subprocess.Popen([str(executable), str(model_path)])
     return executable
-

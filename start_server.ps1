@@ -1,6 +1,7 @@
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 $env:TRIPOSR_PYTHON = "C:\Users\Lenovo\scoop\apps\python\current\python.exe"
+$env:BAMBU_STUDIO_EXE = "E:\BambuStudio\Bambu Studio\bambu-studio.exe"
 
 $port = 8000
 while ($true) {
